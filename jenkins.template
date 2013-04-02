@@ -1,0 +1,143 @@
+{
+    "Description" : "Set up a server running the latest version of Jenkins",
+
+    "Resources": {
+        "IPAddress": {
+            "Type": "AWS::EC2::EIP"
+        },
+        "Ec2Instance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "SecurityGroups": [
+                    {
+                        "Ref": "JenkinsSecurityGroup"
+                    },
+                    {
+                        "Ref": "SSHSecurityGroup"
+                    }
+                ],
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "RegionMap",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        "AMI"
+                    ]
+                },
+                "InstanceType" : "m1.small",
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash -v\n",
+                                "date > /home/ec2-user/starttime\n",
+                                "yum -y update\n",
+                                "yum -y install git libxml2-devel gcc gcc-c++ automake autoconf make curl dmidecode\n",
+                                "wget -O /etc/yum.repos.d/jenkins.repo http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo\n",
+                                "rpm --import http://pkg.jenkins-ci.org/redhat-stable/jenkins-ci.org.key\n",
+                                "yum -y install jenkins\n",
+                                "service jenkins start\n",
+                                "curl -X PUT -H 'Content-Type:' --data-binary '{\"Status\" : \"SUCCESS\",",
+                                   "\"Reason\" : \"The application is ready\",",
+                                   "\"UniqueId\" : \"jenkins\",",
+                                   "\"Data\" : \"Done\"}' ",
+                                   "\"", {"Ref" : "WaitForInstanceWaitHandle"},"\"\n",
+                                "date > /home/ec2-user/stoptime\n"
+                            ]
+                        ]
+                    }
+                }
+            }
+        },
+
+        "JenkinsSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow access to the server via Tomcat",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "8080",
+                        "ToPort": "8080",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        },
+        "SSHSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow access to the server via SSH",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "22",
+                        "ToPort": "22",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        },
+        "WaitForInstanceWaitHandle" : {
+          "Type" : "AWS::CloudFormation::WaitConditionHandle",
+          "Properties" : {
+          }
+        },
+        "WaitForInstance" : {
+          "Type" : "AWS::CloudFormation::WaitCondition",
+          "DependsOn" : "Ec2Instance",
+          "Properties" : {
+            "Handle" : {"Ref" : "WaitForInstanceWaitHandle"},
+            "Timeout" : "600"
+          }
+        }
+      },
+    "Mappings": {
+        "RegionMap": {
+            "us-east-1": {
+                "AMI": "ami-1624987f"
+            },
+            "us-west-1": {
+                "AMI": "ami-1bf9de5e"
+            },
+            "us-west-2": {
+                "AMI": "ami-2a31bf1a"
+            },
+            "eu-west-1": {
+                "AMI": "ami-c37474b7"
+            },
+            "ap-southeast-1": {
+                "AMI": "ami-a6a7e7f4"
+            },
+            "ap-northeast-1": {
+                "AMI": "ami-4e6cd34f"
+            },
+            "sa-east-1": {
+                "AMI": "ami-1e08d103"
+            }
+        }
+    },
+    "Parameters": {
+        "KeyName": {
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access into the server",
+            "Type": "String"
+        }
+    },
+    "Outputs": {
+        "Address": { 
+            "Value": {
+                "Fn::GetAtt": ["Ec2Instance","PublicDnsName"]
+            }
+        },  
+        "JenkinsURL": {
+            "Value": {
+                "Fn::Join": ["",["http://",{"Fn::GetAtt": ["Ec2Instance","PublicDnsName"]},":8080/"]]
+            }
+        }
+    }
+}
