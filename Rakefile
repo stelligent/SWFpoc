@@ -1,5 +1,9 @@
-task :default => [:test]
+require 'rake'
+require 'rspec/core/rake_task'
+    
+task :default => :spec
 
-task :test do
-  ruby "spec/swfpoc_spec.rb"
+ 
+RSpec::Core::RakeTask.new(:spec) do |t|
+  t.pattern = "spec/*_spec.rb"
 end
